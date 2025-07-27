@@ -47,14 +47,21 @@ if lpstat -p "$PRINTER_NAME" >/dev/null 2>&1; then
     lpadmin -x "$PRINTER_NAME" || true
 fi
 
-# Find the correct USB device path
-echo "Detecting USB device path..."
-USB_DEVICE=$(sudo hp-makeuri -c usb | grep "03f0:932a" | head -1 | cut -d' ' -f1)
+# Find the correct USB Bus and Device numbers
+echo "Detecting USB Bus and Device numbers..."
+BUS_DEVICE=$(lsusb | grep "03f0:932a" | awk '{printf "%03d:%03d", $2, $4}')
 
-if [ -z "$USB_DEVICE" ]; then
-    echo "Warning: hp-makeuri failed, using standard USB path"
-    USB_DEVICE="usb://HP/LaserJet%20Pro%20MFP%20M26a?serial=000000000000"
+if [ -z "$BUS_DEVICE" ]; then
+    echo "Error: Could not determine USB Bus and Device numbers."
+    exit 1
 fi
+
+USB_DEVICE_OUTPUT=$(hp-makeuri "$BUS_DEVICE" 2>&1)
+if [ $? -ne 0 ] || echo "$USB_DEVICE_OUTPUT" | grep -qi "error"; then
+    echo "Error: hp-makeuri failed - $USB_DEVICE_OUTPUT"
+    exit 1
+fi
+USB_DEVICE="$USB_DEVICE_OUTPUT"
 
 echo "Using device URI: $USB_DEVICE"
 
